@@ -1,0 +1,62 @@
+{
+  "topics": [
+    {
+      "name": "orders",
+      "partitions": 6,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "604800000",
+        "compression.type": "snappy"
+      }
+    },
+    {
+      "name": "inventory_updates",
+      "partitions": 3,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "259200000"
+      }
+    },
+    {
+      "name": "vehicle_locations",
+      "partitions": 6,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "86400000"
+      }
+    },
+    {
+      "name": "traffic_updates",
+      "partitions": 3,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "3600000"
+      }
+    },
+    {
+      "name": "weather_data",
+      "partitions": 2,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "86400000"
+      }
+    },
+    {
+      "name": "package_scans",
+      "partitions": 6,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "259200000"
+      }
+    },
+    {
+      "name": "returns",
+      "partitions": 2,
+      "replication_factor": 1,
+      "config": {
+        "retention.ms": "604800000"
+      }
+    }
+  ]
+}
+

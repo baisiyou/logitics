@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY applications/scheduler/dispatch_center.py .
+
+# Expose port
+EXPOSE 8001
+
+# Run the application
+CMD ["python", "dispatch_center.py"]
+

@@ -1,0 +1,68 @@
+{
+  "type": "record",
+  "name": "VehicleLocation",
+  "namespace": "com.amazon.logistics",
+  "fields": [
+    {
+      "name": "vehicle_id",
+      "type": "string",
+      "doc": "车辆ID"
+    },
+    {
+      "name": "driver_id",
+      "type": "string",
+      "doc": "司机ID"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "位置更新时间戳"
+    },
+    {
+      "name": "latitude",
+      "type": "double",
+      "doc": "纬度"
+    },
+    {
+      "name": "longitude",
+      "type": "double",
+      "doc": "经度"
+    },
+    {
+      "name": "speed_kmh",
+      "type": "double",
+      "doc": "速度（公里/小时）"
+    },
+    {
+      "name": "heading",
+      "type": "double",
+      "doc": "方向角（度）"
+    },
+    {
+      "name": "status",
+      "type": {
+        "type": "enum",
+        "name": "VehicleStatus",
+        "symbols": ["IDLE", "LOADING", "IN_TRANSIT", "DELIVERING", "RETURNING"]
+      },
+      "doc": "车辆状态"
+    },
+    {
+      "name": "current_capacity",
+      "type": "int",
+      "doc": "当前载货量（包裹数）"
+    },
+    {
+      "name": "max_capacity",
+      "type": "int",
+      "doc": "最大载货量"
+    },
+    {
+      "name": "fuel_level",
+      "type": "double",
+      "doc": "燃油量（百分比）"
+    }
+  ]
+}
+

@@ -1,0 +1,27 @@
+FROM python:3.11-slim as base
+
+WORKDIR /app
+
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy common code
+COPY data-sources/kafka_topics.json ./data-sources/
+COPY data-sources/schemas/ ./data-sources/schemas/
+
+# Order Simulator
+FROM base as order-simulator
+COPY data-sources/simulators/order_simulator.py .
+CMD ["python", "order_simulator.py"]
+
+# Vehicle Simulator
+FROM base as vehicle-simulator
+COPY data-sources/simulators/vehicle_location_simulator.py .
+CMD ["python", "vehicle_location_simulator.py"]
+
+# Inventory Simulator
+FROM base as inventory-simulator
+COPY data-sources/simulators/inventory_simulator.py .
+CMD ["python", "inventory_simulator.py"]
+
