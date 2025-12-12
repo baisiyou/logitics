@@ -1,0 +1,81 @@
+{
+  "type": "record",
+  "name": "Order",
+  "namespace": "com.amazon.logistics",
+  "fields": [
+    {
+      "name": "order_id",
+      "type": "string",
+      "doc": "订单唯一标识"
+    },
+    {
+      "name": "customer_id",
+      "type": "string",
+      "doc": "客户ID"
+    },
+    {
+      "name": "timestamp",
+      "type": "long",
+      "logicalType": "timestamp-millis",
+      "doc": "订单时间戳（毫秒）"
+    },
+    {
+      "name": "delivery_address",
+      "type": {
+        "type": "record",
+        "name": "Address",
+        "fields": [
+          {"name": "street", "type": "string"},
+          {"name": "city", "type": "string"},
+          {"name": "state", "type": "string"},
+          {"name": "zip_code", "type": "string"},
+          {"name": "latitude", "type": "double"},
+          {"name": "longitude", "type": "double"}
+        ]
+      },
+      "doc": "配送地址"
+    },
+    {
+      "name": "items",
+      "type": {
+        "type": "array",
+        "items": {
+          "type": "record",
+          "name": "OrderItem",
+          "fields": [
+            {"name": "product_id", "type": "string"},
+            {"name": "quantity", "type": "int"},
+            {"name": "weight_kg", "type": "double"},
+            {"name": "dimensions", "type": {
+              "type": "record",
+              "name": "Dimensions",
+              "fields": [
+                {"name": "length_cm", "type": "double"},
+                {"name": "width_cm", "type": "double"},
+                {"name": "height_cm", "type": "double"}
+              ]
+            }}
+          ]
+        }
+      },
+      "doc": "订单商品列表"
+    },
+    {
+      "name": "priority",
+      "type": {
+        "type": "enum",
+        "name": "Priority",
+        "symbols": ["STANDARD", "EXPRESS", "SAME_DAY"]
+      },
+      "doc": "配送优先级"
+    },
+    {
+      "name": "preferred_delivery_time",
+      "type": ["null", "long"],
+      "logicalType": "timestamp-millis",
+      "default": null,
+      "doc": "期望配送时间"
+    }
+  ]
+}
+

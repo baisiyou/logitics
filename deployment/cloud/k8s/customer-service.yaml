@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: customer-service
+  namespace: logistics-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: customer-service
+  template:
+    metadata:
+      labels:
+        app: customer-service
+    spec:
+      containers:
+      - name: customer
+        image: gcr.io/YOUR_PROJECT_ID/customer-service:latest
+        ports:
+        - containerPort: 8004
+        envFrom:
+        - configMapRef:
+            name: logistics-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: customer-service
+  namespace: logistics-system
+spec:
+  selector:
+    app: customer-service
+  ports:
+  - protocol: TCP
+    port: 8004
+    targetPort: 8004
+  type: ClusterIP
+

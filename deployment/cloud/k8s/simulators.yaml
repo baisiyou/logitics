@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-simulator
+  namespace: logistics-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-simulator
+  template:
+    metadata:
+      labels:
+        app: order-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: gcr.io/YOUR_PROJECT_ID/order-simulator:latest
+        envFrom:
+        - configMapRef:
+            name: logistics-config
+        - secretRef:
+            name: logistics-secrets
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vehicle-simulator
+  namespace: logistics-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vehicle-simulator
+  template:
+    metadata:
+      labels:
+        app: vehicle-simulator
+    spec:
+      containers:
+      - name: simulator
+        image: gcr.io/YOUR_PROJECT_ID/vehicle-simulator:latest
+        envFrom:
+        - configMapRef:
+            name: logistics-config
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "200m"
+

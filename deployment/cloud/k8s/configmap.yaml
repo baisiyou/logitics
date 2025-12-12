@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logistics-config
+  namespace: logistics-system
+data:
+  CONFLUENT_BOOTSTRAP_SERVERS: "pkc-619z3.us-east1.gcp.confluent.cloud:9092"
+  CONFLUENT_SCHEMA_REGISTRY_URL: "https://psrc-15ov57k.us-east1.gcp.confluent.cloud"
+  AI_SERVICE_URL: "http://vertex-ai-service:8000"
+  DISPATCH_CENTER_URL: "http://dispatch-service:8001"
+  POSTGRES_HOST: "postgres-service"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "logistics_db"
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  API_PORT: "8000"
+  DASHBOARD_PORT: "8501"
+  WEBSOCKET_PORT: "8080"
