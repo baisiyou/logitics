@@ -7,7 +7,8 @@ Real-time监控和IntelligentDispatch决策
 import json
 import time
 from typing import Dict, List, Any
-from confluent_kafka import Consumer, Producer
+from kafka import KafkaConsumer, KafkaProducer
+from kafka.errors import KafkaError
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
@@ -142,12 +143,6 @@ def optimize_dispatch(order: Dict, vehicles: Dict, warehouses: Dict) -> Dict[str
 
 def kafka_consumer_loop():
     """Kafka consumer loop（Run in background）"""
-    consumer = Consumer({
-        'bootstrap.servers': BOOTSTRAP_SERVERS,
-        'group.id': 'dispatch-center',
-        'auto.offset.reset': 'earliest'  # 从最早的消息开始读取，确保不遗漏数据
-    })
-    
     topics = [
         'orders',
         'vehicle_locations',
@@ -157,101 +152,122 @@ def kafka_consumer_loop():
         'warehouse_pressure_alerts'
     ]
     
-    consumer.subscribe(topics)
+    # 使用 kafka-python 创建 consumer
+    consumer = KafkaConsumer(
+        *topics,
+        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),  # 支持多个服务器
+        group_id='dispatch-center',
+        auto_offset_reset='earliest',  # 从最早的消息开始读取
+        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+        consumer_timeout_ms=1000  # 1秒超时
+    )
     
-    producer = Producer({
-        'bootstrap.servers': BOOTSTRAP_SERVERS,
-        'client.id': 'dispatch-center'
-    })
+    # 使用 kafka-python 创建 producer
+    producer = KafkaProducer(
+        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        key_serializer=lambda k: k.encode('utf-8') if k else None
+    )
     
     print("Dispatch中心Kafka消费者AlreadyStart")
     
     try:
         while True:
-            msg = consumer.poll(timeout=1.0)
-            
-            if msg is None:
-                continue
-            if msg.error():
-                continue
-            
-            topic = msg.topic()
-            
             try:
-                data = json.loads(msg.value().decode('utf-8'))
+                # kafka-python 的 consumer 是一个迭代器
+                # consumer_timeout_ms 设置超时，如果没有消息会抛出 StopIteration
+                msg_pack = consumer.poll(timeout_ms=1000)
                 
-                if topic == 'orders':
-                    order_id = data.get('order_id')
-                    dispatch_state['orders'][order_id] = data
-                    dispatch_state['statistics']['total_orders_today'] += 1
-                    dispatch_state['statistics']['pending_orders'] += 1
-                    
-                    # 执行Dispatch优化
-                    assignment = optimize_dispatch(
-                        data,
-                        dispatch_state['vehicles'],
-                        dispatch_state['warehouses']
-                    )
-                    
-                    # SendDispatch指令
-                    producer.produce(
-                        'dispatch_assignments',
-                        key=order_id.encode('utf-8'),
-                        value=json.dumps(assignment).encode('utf-8')
-                    )
-                    producer.poll(0)
-                    
-                    # 广播Update
-                    asyncio.create_task(manager.broadcast({
-                        'type': 'order_assigned',
-                        'data': assignment
-                    }))
+                if not msg_pack:
+                    continue
                 
-                elif topic == 'vehicle_locations':
-                    vehicle_id = data.get('vehicle_id')
-                    dispatch_state['vehicles'][vehicle_id] = data
-                    
-                    if data.get('status') in ['IN_TRANSIT', 'DELIVERING']:
-                        dispatch_state['statistics']['active_vehicles'] = len([
-                            v for v in dispatch_state['vehicles'].values()
-                            if v.get('status') in ['IN_TRANSIT', 'DELIVERING']
-                        ])
-                
-                elif topic == 'warehouse_inventory_levels':
-                    warehouse_id = data.get('warehouse_id')
-                    dispatch_state['warehouses'][warehouse_id] = data
-                
-                elif topic == 'demand_predictions':
-                    key = f"{data.get('city')}_{data.get('region')}"
-                    dispatch_state['demand_predictions'][key] = data
-                
-                elif topic in ['anomaly_alerts', 'warehouse_pressure_alerts']:
-                    alert = {
-                        'type': topic,
-                        'data': data,
-                        'timestamp': int(time.time() * 1000),
-                        'severity': data.get('severity', 'MEDIUM')
-                    }
-                    dispatch_state['alerts'].append(alert)
-                    
-                    # 只保留最近100条Alert
-                    if len(dispatch_state['alerts']) > 100:
-                        dispatch_state['alerts'] = dispatch_state['alerts'][-100:]
-                    
-                    # 广播Alert
-                    asyncio.create_task(manager.broadcast({
-                        'type': 'alert',
-                        'data': alert
-                    }))
-                
+                # msg_pack 是一个字典：{TopicPartition: [messages]}
+                for topic_partition, messages in msg_pack.items():
+                    for msg in messages:
+                        topic = msg.topic
+                        
+                        try:
+                            data = msg.value  # kafka-python 已经自动反序列化
+                            
+                            if topic == 'orders':
+                                order_id = data.get('order_id')
+                                dispatch_state['orders'][order_id] = data
+                                dispatch_state['statistics']['total_orders_today'] += 1
+                                dispatch_state['statistics']['pending_orders'] += 1
+                                
+                                # 执行Dispatch优化
+                                assignment = optimize_dispatch(
+                                    data,
+                                    dispatch_state['vehicles'],
+                                    dispatch_state['warehouses']
+                                )
+                                
+                                # SendDispatch指令
+                                producer.send(
+                                    'dispatch_assignments',
+                                    key=order_id,
+                                    value=assignment
+                                )
+                                producer.flush()
+                                
+                                # 广播Update
+                                asyncio.create_task(manager.broadcast({
+                                    'type': 'order_assigned',
+                                    'data': assignment
+                                }))
+                            
+                            elif topic == 'vehicle_locations':
+                                vehicle_id = data.get('vehicle_id')
+                                dispatch_state['vehicles'][vehicle_id] = data
+                                
+                                if data.get('status') in ['IN_TRANSIT', 'DELIVERING']:
+                                    dispatch_state['statistics']['active_vehicles'] = len([
+                                        v for v in dispatch_state['vehicles'].values()
+                                        if v.get('status') in ['IN_TRANSIT', 'DELIVERING']
+                                    ])
+                            
+                            elif topic == 'warehouse_inventory_levels':
+                                warehouse_id = data.get('warehouse_id')
+                                dispatch_state['warehouses'][warehouse_id] = data
+                            
+                            elif topic == 'demand_predictions':
+                                key = f"{data.get('city')}_{data.get('region')}"
+                                dispatch_state['demand_predictions'][key] = data
+                            
+                            elif topic in ['anomaly_alerts', 'warehouse_pressure_alerts']:
+                                alert = {
+                                    'type': topic,
+                                    'data': data,
+                                    'timestamp': int(time.time() * 1000),
+                                    'severity': data.get('severity', 'MEDIUM')
+                                }
+                                dispatch_state['alerts'].append(alert)
+                                
+                                # 只保留最近100条Alert
+                                if len(dispatch_state['alerts']) > 100:
+                                    dispatch_state['alerts'] = dispatch_state['alerts'][-100:]
+                                
+                                # 广播Alert
+                                asyncio.create_task(manager.broadcast({
+                                    'type': 'alert',
+                                    'data': alert
+                                }))
+                            
+                        except Exception as e:
+                            print(f"ProcessError: {e}")
+                                
+            except StopIteration:
+                # 超时，继续循环
+                continue
             except Exception as e:
-                print(f"ProcessError: {e}")
+                print(f"Kafka consumer error: {e}")
+                time.sleep(1)  # 出错时等待1秒再继续
                 
     except KeyboardInterrupt:
         pass
     finally:
         consumer.close()
-        producer.flush()
+        producer.close()
 
 
 # Start后台Kafka消费者
@@ -342,17 +358,19 @@ async def manual_dispatch(order_id: str, vehicle_id: str):
     }
     
     # SendDispatch指令
-    producer = Producer({
-        'bootstrap.servers': BOOTSTRAP_SERVERS,
-        'client.id': 'dispatch-center'
-    })
+    producer = KafkaProducer(
+        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
+        key_serializer=lambda k: k.encode('utf-8') if k else None
+    )
     
-    producer.produce(
+    producer.send(
         'dispatch_assignments',
-        key=order_id.encode('utf-8'),
-        value=json.dumps(assignment).encode('utf-8')
+        key=order_id,
+        value=assignment
     )
     producer.flush()
+    producer.close()
     
     return {"success": True, "assignment": assignment}
 
