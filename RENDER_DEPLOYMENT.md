@@ -12,26 +12,29 @@
 
 ### 方法一：通过 Render Dashboard 部署（推荐）
 
-#### 1. 创建新的 Web Service
+#### 1. 创建新的 Web Service（推荐使用 Dockerfile）
+
+由于 `confluent-kafka` 需要系统依赖（librdkafka），**强烈推荐使用 Dockerfile**：
 
 1. 登录 [Render Dashboard](https://dashboard.render.com)
 2. 点击 **New +** → **Web Service**
 3. 连接您的 GitHub 仓库：`baisiyou/logitics`
 4. 填写服务配置：
    - **Name**: `logistics-dispatch-center`
-   - **Environment**: `Python 3`
+   - **Environment**: 选择 **Docker**（重要！）
+   - **Dockerfile Path**: `applications/scheduler/Dockerfile`
+   - **Docker Context**: `.`（项目根目录）
    - **Region**: `Oregon (US West)` 或其他您偏好的区域
    - **Branch**: `main`
-   - **Root Directory**: `applications/scheduler`（重要！）
-   - **Build Command**: 
-     ```bash
-     pip install -r requirements.txt
-     ```
-   - **Start Command**: 
-     ```bash
-     python dispatch_center.py
-     ```
    - **Plan**: `Free`（免费版，适合测试）
+
+**备选方法**：如果无法使用 Docker，可以尝试：
+   - **Environment**: `Python 3`
+   - **Root Directory**: `applications/scheduler`
+   - **Build Command**: `pip install --upgrade pip && pip install -r requirements.txt`
+   - **Start Command**: `python dispatch_center.py`
+
+**注意**：Python 环境方法可能会失败，因为缺少 `librdkafka-dev` 系统库。
 
 #### 2. 配置环境变量
 

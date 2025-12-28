@@ -15,25 +15,29 @@
 
 ### 步骤 3：配置服务
 
+**重要**：由于 `confluent-kafka` 需要系统依赖，请使用 **Dockerfile** 方式部署！
+
+#### 推荐方法：使用 Dockerfile
+
 填写以下配置信息：
 
-#### 基本信息
 - **Name**: `logistics-dispatch-center`
-- **Environment**: `Python 3`
+- **Environment**: 选择 **Docker**（不是 Python 3）
+- **Dockerfile Path**: `applications/scheduler/Dockerfile`
+- **Docker Context**: `.`（项目根目录）
 - **Region**: `Oregon (US West)` 或您偏好的区域
 - **Branch**: `main`
-- **Root Directory**: `applications/scheduler` ⚠️ **重要！**
+- **Plan**: `Free`
 
-#### 构建和启动命令
-- **Build Command**: 
-  ```bash
-  pip install -r requirements.txt
-  ```
-  
-- **Start Command**: 
-  ```bash
-  python dispatch_center.py
-  ```
+#### 备选方法：使用 Python 环境（如果 Docker 不可用）
+
+如果您的 Render 计划不支持 Docker，可以尝试：
+
+- **Root Directory**: `applications/scheduler`
+- **Build Command**: `pip install --upgrade pip && pip install -r requirements.txt`
+- **Start Command**: `python dispatch_center.py`
+
+**注意**：此方法可能会因为缺少 `librdkafka` 而失败。建议使用 Dockerfile 方法。
 
 #### 计划
 - **Instance Type**: `Free`（免费版，适合测试）

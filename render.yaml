@@ -6,7 +6,8 @@ services:
     region: oregon
     plan: free
     rootDir: applications/scheduler
-    buildCommand: pip install -r requirements.txt
+    # Render 会自动读取 apt.txt 安装系统依赖
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: python dispatch_center.py
     envVars:
       - key: CONFLUENT_BOOTSTRAP_SERVERS

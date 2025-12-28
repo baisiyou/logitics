@@ -1,7 +1,13 @@
 #!/bin/bash
 # Render 构建脚本
-# 从调度中心目录构建
+# 安装 Python 依赖
 
-# 安装依赖（使用当前目录的 requirements.txt）
+set -e  # 遇到错误立即退出
+
+echo "升级 pip..."
+pip install --upgrade pip
+
+echo "安装 Python 依赖..."
 pip install -r requirements.txt
 
+echo "构建完成！"
