@@ -20,6 +20,8 @@ import asyncio
 load_dotenv()
 
 BOOTSTRAP_SERVERS = os.getenv('CONFLUENT_BOOTSTRAP_SERVERS', 'localhost:9092')
+CONFLUENT_API_KEY = os.getenv('CONFLUENT_API_KEY', None)
+CONFLUENT_API_SECRET = os.getenv('CONFLUENT_API_SECRET', None)
 
 app = FastAPI(title="Amazon Logistics Dispatch Center")
 
@@ -152,22 +154,39 @@ def kafka_consumer_loop():
         'warehouse_pressure_alerts'
     ]
     
-    # 使用 kafka-python 创建 consumer
-    consumer = KafkaConsumer(
-        *topics,
-        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),  # 支持多个服务器
-        group_id='dispatch-center',
-        auto_offset_reset='earliest',  # 从最早的消息开始读取
-        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-        consumer_timeout_ms=1000  # 1秒超时
-    )
+    # 配置 Kafka 连接参数
+    consumer_config = {
+        'bootstrap_servers': BOOTSTRAP_SERVERS.split(','),  # 支持多个服务器
+        'group_id': 'dispatch-center',
+        'auto_offset_reset': 'earliest',  # 从最早的消息开始读取
+        'value_deserializer': lambda m: json.loads(m.decode('utf-8')),
+        'consumer_timeout_ms': 1000  # 1秒超时
+    }
     
-    # 使用 kafka-python 创建 producer
-    producer = KafkaProducer(
-        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        key_serializer=lambda k: k.encode('utf-8') if k else None
-    )
+    producer_config = {
+        'bootstrap_servers': BOOTSTRAP_SERVERS.split(','),
+        'value_serializer': lambda v: json.dumps(v).encode('utf-8'),
+        'key_serializer': lambda k: k.encode('utf-8') if k else None
+    }
+    
+    # 如果提供了 Confluent Cloud 认证信息，添加 SASL 配置
+    if CONFLUENT_API_KEY and CONFLUENT_API_SECRET:
+        consumer_config.update({
+            'security_protocol': 'SASL_SSL',
+            'sasl_mechanism': 'PLAIN',
+            'sasl_plain_username': CONFLUENT_API_KEY,
+            'sasl_plain_password': CONFLUENT_API_SECRET
+        })
+        producer_config.update({
+            'security_protocol': 'SASL_SSL',
+            'sasl_mechanism': 'PLAIN',
+            'sasl_plain_username': CONFLUENT_API_KEY,
+            'sasl_plain_password': CONFLUENT_API_SECRET
+        })
+    
+    # 使用 kafka-python 创建 consumer 和 producer
+    consumer = KafkaConsumer(*topics, **consumer_config)
+    producer = KafkaProducer(**producer_config)
     
     print("Dispatch中心Kafka消费者AlreadyStart")
     
@@ -358,11 +377,22 @@ async def manual_dispatch(order_id: str, vehicle_id: str):
     }
     
     # SendDispatch指令
-    producer = KafkaProducer(
-        bootstrap_servers=BOOTSTRAP_SERVERS.split(','),
-        value_serializer=lambda v: json.dumps(v).encode('utf-8'),
-        key_serializer=lambda k: k.encode('utf-8') if k else None
-    )
+    producer_config = {
+        'bootstrap_servers': BOOTSTRAP_SERVERS.split(','),
+        'value_serializer': lambda v: json.dumps(v).encode('utf-8'),
+        'key_serializer': lambda k: k.encode('utf-8') if k else None
+    }
+    
+    # 如果提供了 Confluent Cloud 认证信息，添加 SASL 配置
+    if CONFLUENT_API_KEY and CONFLUENT_API_SECRET:
+        producer_config.update({
+            'security_protocol': 'SASL_SSL',
+            'sasl_mechanism': 'PLAIN',
+            'sasl_plain_username': CONFLUENT_API_KEY,
+            'sasl_plain_password': CONFLUENT_API_SECRET
+        })
+    
+    producer = KafkaProducer(**producer_config)
     
     producer.send(
         'dispatch_assignments',
