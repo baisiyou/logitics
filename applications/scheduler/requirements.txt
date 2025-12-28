@@ -1,6 +1,7 @@
 # Core dependencies for Dispatch Center Service
-# 使用 kafka-python 替代 confluent-kafka（不需要系统依赖，适合 Render 部署）
-kafka-python==2.0.2
+# 使用 kafka-python-ng 替代 kafka-python（支持 Python 3.12+，修复了兼容性问题）
+# kafka-python-ng 是 kafka-python 的维护分支，API 完全兼容
+kafka-python-ng==2.3.0
 fastapi==0.104.1
 uvicorn==0.24.0
 python-dotenv==1.0.0
