@@ -122,18 +122,26 @@ def generate_mock_data():
             'current_inventory': random.randint(500, 4500)
         }
     
-    # 初始化统计数据
-    update_statistics()
+    # 初始化统计数据（初始时 delivered_today 为 0）
+    dispatch_state['statistics'] = {
+        'total_orders_today': len(dispatch_state['orders']),
+        'active_vehicles': len([v for v in dispatch_state['vehicles'].values() if v.get('status') in ['IN_TRANSIT', 'DELIVERING']]),
+        'delivered_today': 0,
+        'pending_orders': len([o for o in dispatch_state['orders'].values()])
+    }
     
     print(f"生成模拟数据: {len(dispatch_state['orders'])} 订单, {len(dispatch_state['vehicles'])} 车辆")
 
 
 def update_statistics():
     """更新统计数据"""
+    # 保留 delivered_today 的值（如果已存在）
+    current_delivered = dispatch_state['statistics'].get('delivered_today', 0)
+    
     dispatch_state['statistics'] = {
-        'total_orders_today': len(dispatch_state['orders']),
+        'total_orders_today': len(dispatch_state['orders']) + current_delivered,  # 包括已交付的订单
         'active_vehicles': len([v for v in dispatch_state['vehicles'].values() if v.get('status') in ['IN_TRANSIT', 'DELIVERING']]),
-        'delivered_today': dispatch_state['statistics'].get('delivered_today', 0),
+        'delivered_today': current_delivered,
         'pending_orders': len([o for o in dispatch_state['orders'].values()])
     }
 
@@ -206,33 +214,52 @@ def simulate_delivery():
     # 随机选择一个订单标记为已完成
     order_id = random.choice(list(dispatch_state['orders'].keys()))
     
-    # 模拟交付：增加已交付数量，移除订单（或保留但标记为已完成）
-    dispatch_state['statistics']['delivered_today'] = dispatch_state['statistics'].get('delivered_today', 0) + 1
+    # 模拟交付：增加已交付数量，移除订单
+    current_delivered = dispatch_state['statistics'].get('delivered_today', 0)
+    dispatch_state['statistics']['delivered_today'] = current_delivered + 1
     dispatch_state['orders'].pop(order_id, None)
     
-    update_statistics()
-    print(f"模拟订单交付: {order_id}")
+    # 更新其他统计
+    dispatch_state['statistics']['pending_orders'] = len(dispatch_state['orders'])
+    # total_orders_today 保持不变（因为它应该包括已交付的订单）
+    
+    print(f"模拟订单交付: {order_id}, 已交付总数: {dispatch_state['statistics']['delivered_today']}")
 
 
 def mock_data_simulator_loop():
     """模拟数据生成循环（当没有 Kafka 时）"""
+    print("模拟数据生成器线程已启动")
+    initial_delay = 3  # 首次延迟3秒
+    time.sleep(initial_delay)
+    
     while True:
         try:
-            time.sleep(10)  # 每10秒执行一次
+            # 每5秒执行一次（更频繁的更新）
+            time.sleep(5)
             
-            # 30% 概率生成新订单
-            if random.random() < 0.3:
+            # 50% 概率生成新订单（提高概率让变化更明显）
+            if random.random() < 0.5:
                 simulate_new_order()
             
             # 每次更新车辆位置
             simulate_vehicle_update()
             
-            # 20% 概率模拟订单交付
-            if random.random() < 0.2 and dispatch_state['orders']:
+            # 30% 概率模拟订单交付（提高概率）
+            if random.random() < 0.3 and dispatch_state['orders']:
                 simulate_delivery()
+            
+            # 定期打印状态（用于调试）
+            if random.random() < 0.1:  # 10% 概率打印状态
+                stats = dispatch_state['statistics']
+                print(f"当前状态: 订单={stats.get('total_orders_today', 0)}, "
+                      f"活跃车辆={stats.get('active_vehicles', 0)}, "
+                      f"已交付={stats.get('delivered_today', 0)}, "
+                      f"待处理={stats.get('pending_orders', 0)}")
                 
         except Exception as e:
             print(f"模拟数据生成错误: {e}")
+            import traceback
+            traceback.print_exc()
             time.sleep(5)
 
 
