@@ -15,7 +15,19 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const DISPATCH_CENTER_URL = 'http://localhost:8001';
+// 使用环境变量配置后端 URL，如果未设置则使用默认值（本地开发）
+const DISPATCH_CENTER_URL = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+
+// 获取 WebSocket URL（从 HTTP/HTTPS URL 转换为 WS/WSS）
+const getWebSocketUrl = () => {
+  const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:8001';
+  if (apiUrl.startsWith('https://')) {
+    return apiUrl.replace('https://', 'wss://') + '/ws';
+  } else if (apiUrl.startsWith('http://')) {
+    return apiUrl.replace('http://', 'ws://') + '/ws';
+  }
+  return 'ws://localhost:8001/ws';
+};
 
 function App() {
   const [statistics, setStatistics] = useState({
@@ -32,7 +44,7 @@ function App() {
 
   useEffect(() => {
     // 连接WebSocket
-    const websocket = new WebSocket(`ws://localhost:8001/ws`);
+    const websocket = new WebSocket(getWebSocketUrl());
     
     websocket.onopen = () => {
       console.log('WebSocket连接已建立');

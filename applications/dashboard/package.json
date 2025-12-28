@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "亚马逊物流网络实时智能调度系统仪表板",
   "private": true,
+  "homepage": ".",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
