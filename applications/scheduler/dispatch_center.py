@@ -75,21 +75,33 @@ def generate_mock_data():
     """生成初始模拟数据用于演示（当没有 Kafka 数据源时）"""
     cities = ['Montreal', 'Toronto', 'Vancouver', 'Calgary', 'Ottawa']
     priorities = ['STANDARD', 'EXPRESS', 'SAME_DAY']
+    current_time = int(time.time() * 1000)
     
     # 生成模拟订单
     for i in range(random.randint(5, 15)):
         order_id = f"ORD{int(time.time() * 1000)}{i}"
         city = random.choice(cities)
+        priority = random.choice(priorities)
+        
+        # 设置预计交付时间
+        if priority == 'SAME_DAY':
+            preferred_time = current_time + random.randint(3600000, 7200000)  # 1-2小时
+        elif priority == 'EXPRESS':
+            preferred_time = current_time + random.randint(7200000, 14400000)  # 2-4小时
+        else:
+            preferred_time = current_time + random.randint(14400000, 86400000)  # 4-24小时
+        
         dispatch_state['orders'][order_id] = {
             'order_id': order_id,
             'customer_id': f"CUST{random.randint(10000, 99999)}",
-            'timestamp': int(time.time() * 1000) - random.randint(0, 3600000),
+            'timestamp': current_time - random.randint(0, 3600000),
             'delivery_address': {
                 'city': city,
                 'latitude': 45.5017 + random.uniform(-0.1, 0.1),
                 'longitude': -73.5673 + random.uniform(-0.1, 0.1)
             },
-            'priority': random.choice(priorities),
+            'priority': priority,
+            'preferred_delivery_time': preferred_time,
             'items': [{'product_id': f'P{random.randint(1, 5)}', 'quantity': random.randint(1, 3)}]
         }
     
@@ -150,19 +162,31 @@ def simulate_new_order():
     """模拟新订单到达"""
     cities = ['Montreal', 'Toronto', 'Vancouver', 'Calgary', 'Ottawa']
     priorities = ['STANDARD', 'EXPRESS', 'SAME_DAY']
+    current_time = int(time.time() * 1000)
     
     order_id = f"ORD{int(time.time() * 1000)}{random.randint(1000, 9999)}"
     city = random.choice(cities)
+    priority = random.choice(priorities)
+    
+    # 设置预计交付时间
+    if priority == 'SAME_DAY':
+        preferred_time = current_time + random.randint(3600000, 7200000)  # 1-2小时
+    elif priority == 'EXPRESS':
+        preferred_time = current_time + random.randint(7200000, 14400000)  # 2-4小时
+    else:
+        preferred_time = current_time + random.randint(14400000, 86400000)  # 4-24小时
+    
     dispatch_state['orders'][order_id] = {
         'order_id': order_id,
         'customer_id': f"CUST{random.randint(10000, 99999)}",
-        'timestamp': int(time.time() * 1000),
+        'timestamp': current_time,
         'delivery_address': {
             'city': city,
             'latitude': 45.5017 + random.uniform(-0.1, 0.1),
             'longitude': -73.5673 + random.uniform(-0.1, 0.1)
         },
-        'priority': random.choice(priorities),
+        'priority': priority,
+        'preferred_delivery_time': preferred_time,
         'items': [{'product_id': f'P{random.randint(1, 5)}', 'quantity': random.randint(1, 3)}]
     }
     
@@ -174,7 +198,7 @@ def simulate_new_order():
         'data': {
             'order_id': order_id,
             'assigned_vehicle': random.choice(list(dispatch_state['vehicles'].keys())) if dispatch_state['vehicles'] else None,
-            'timestamp': int(time.time() * 1000)
+            'timestamp': current_time
         }
     }))
     
@@ -226,6 +250,176 @@ def simulate_delivery():
     print(f"模拟订单交付: {order_id}, 已交付总数: {dispatch_state['statistics']['delivered_today']}")
 
 
+def generate_alert(alert_type: str, severity: str, description: str, data: dict = None):
+    """生成警报并广播"""
+    alert = {
+        'type': alert_type,
+        'severity': severity,  # LOW, MEDIUM, HIGH, CRITICAL
+        'description': description,
+        'timestamp': int(time.time() * 1000),
+        'data': data or {}
+    }
+    
+    # 添加到警报列表
+    dispatch_state['alerts'].append(alert)
+    
+    # 只保留最近100条警报
+    if len(dispatch_state['alerts']) > 100:
+        dispatch_state['alerts'] = dispatch_state['alerts'][-100:]
+    
+    # 通过WebSocket广播警报
+    asyncio.create_task(manager.broadcast({
+        'type': 'alert',
+        'data': alert
+    }))
+    
+    print(f"生成警报: [{severity}] {description}")
+    return alert
+
+
+def check_and_generate_alerts():
+    """检查各种条件并生成警报"""
+    # 1. 检查车辆低油量
+    for vehicle_id, vehicle in dispatch_state['vehicles'].items():
+        fuel_level = vehicle.get('fuel_level', 100)
+        if fuel_level < 20:
+            severity = 'CRITICAL' if fuel_level < 10 else 'HIGH'
+            generate_alert(
+                'low_fuel',
+                severity,
+                f"车辆 {vehicle_id} 油量低 ({fuel_level:.1f}%)",
+                {
+                    'vehicle_id': vehicle_id,
+                    'driver_id': vehicle.get('driver_id'),
+                    'fuel_level': fuel_level,
+                    'location': {'lat': vehicle.get('latitude'), 'lon': vehicle.get('longitude')}
+                }
+            )
+    
+    # 2. 检查订单延迟（超过预计交付时间）
+    current_time = int(time.time() * 1000)
+    for order_id, order in list(dispatch_state['orders'].items()):
+        # 如果订单存在 preferred_delivery_time，检查是否延迟
+        if 'preferred_delivery_time' in order:
+            preferred_time = order.get('preferred_delivery_time')
+            if current_time > preferred_time:
+                delay_minutes = (current_time - preferred_time) // 60000
+                severity = 'CRITICAL' if delay_minutes > 60 else 'HIGH' if delay_minutes > 30 else 'MEDIUM'
+                generate_alert(
+                    'delayed_delivery',
+                    severity,
+                    f"订单 {order_id} 延迟交付 ({delay_minutes} 分钟)",
+                    {
+                        'order_id': order_id,
+                        'customer_id': order.get('customer_id'),
+                        'delay_minutes': delay_minutes,
+                        'priority': order.get('priority'),
+                        'city': order.get('delivery_address', {}).get('city')
+                    }
+                )
+        else:
+            # 如果没有 preferred_delivery_time，检查订单创建时间（超过2小时未处理）
+            order_time = order.get('timestamp', current_time)
+            age_hours = (current_time - order_time) / 3600000
+            if age_hours > 2:
+                generate_alert(
+                    'pending_order_timeout',
+                    'HIGH',
+                    f"订单 {order_id} 待处理时间过长 ({age_hours:.1f} 小时)",
+                    {
+                        'order_id': order_id,
+                        'customer_id': order.get('customer_id'),
+                        'age_hours': age_hours,
+                        'priority': order.get('priority')
+                    }
+                )
+    
+    # 3. 检查高优先级订单积压
+    high_priority_orders = [
+        o for o in dispatch_state['orders'].values()
+        if o.get('priority') in ['EXPRESS', 'SAME_DAY']
+    ]
+    if len(high_priority_orders) > 10:
+        generate_alert(
+            'high_priority_backlog',
+            'HIGH',
+            f"高优先级订单积压 ({len(high_priority_orders)} 单待处理)",
+            {
+                'count': len(high_priority_orders),
+                'express_count': len([o for o in high_priority_orders if o.get('priority') == 'EXPRESS']),
+                'same_day_count': len([o for o in high_priority_orders if o.get('priority') == 'SAME_DAY'])
+            }
+        )
+    
+    # 4. 检查仓库库存不足
+    for warehouse_id, warehouse in dispatch_state['warehouses'].items():
+        capacity = warehouse.get('capacity', 1000)
+        current_inventory = warehouse.get('current_inventory', 500)
+        utilization = current_inventory / capacity if capacity > 0 else 0
+        
+        if utilization < 0.1:  # 库存低于10%
+            generate_alert(
+                'low_inventory',
+                'HIGH',
+                f"仓库 {warehouse_id} 库存不足 ({utilization*100:.1f}%)",
+                {
+                    'warehouse_id': warehouse_id,
+                    'warehouse_name': warehouse.get('name'),
+                    'current_inventory': current_inventory,
+                    'capacity': capacity,
+                    'utilization': utilization
+                }
+            )
+        elif utilization > 0.9:  # 库存高于90%
+            generate_alert(
+                'high_inventory',
+                'MEDIUM',
+                f"仓库 {warehouse_id} 库存接近满载 ({utilization*100:.1f}%)",
+                {
+                    'warehouse_id': warehouse_id,
+                    'warehouse_name': warehouse.get('name'),
+                    'current_inventory': current_inventory,
+                    'capacity': capacity,
+                    'utilization': utilization
+                }
+            )
+    
+    # 5. 检查车辆异常状态
+    idle_vehicles = [v for v in dispatch_state['vehicles'].values() if v.get('status') == 'IDLE']
+    total_vehicles = len(dispatch_state['vehicles'])
+    if total_vehicles > 0:
+        idle_ratio = len(idle_vehicles) / total_vehicles
+        if idle_ratio > 0.5 and len(dispatch_state['orders']) > 5:
+            generate_alert(
+                'excessive_idle_vehicles',
+                'MEDIUM',
+                f"大量车辆闲置 ({len(idle_vehicles)}/{total_vehicles})，但仍有订单待处理",
+                {
+                    'idle_count': len(idle_vehicles),
+                    'total_count': total_vehicles,
+                    'pending_orders': len(dispatch_state['orders'])
+                }
+            )
+    
+    # 6. 检查车辆速度异常（可能表示故障或交通问题）
+    for vehicle_id, vehicle in dispatch_state['vehicles'].items():
+        if vehicle.get('status') in ['IN_TRANSIT', 'DELIVERING']:
+            speed = vehicle.get('speed_kmh', 0)
+            # 如果状态是在运输中但速度为0，可能是故障
+            if speed == 0 and vehicle.get('status') == 'IN_TRANSIT':
+                generate_alert(
+                    'vehicle_stalled',
+                    'HIGH',
+                    f"车辆 {vehicle_id} 可能在运输中停滞",
+                    {
+                        'vehicle_id': vehicle_id,
+                        'driver_id': vehicle.get('driver_id'),
+                        'status': vehicle.get('status'),
+                        'location': {'lat': vehicle.get('latitude'), 'lon': vehicle.get('longitude')}
+                    }
+                )
+
+
 def mock_data_simulator_loop():
     """模拟数据生成循环（当没有 Kafka 时）"""
     print("模拟数据生成器线程已启动")
@@ -247,6 +441,10 @@ def mock_data_simulator_loop():
             # 30% 概率模拟订单交付（提高概率）
             if random.random() < 0.3 and dispatch_state['orders']:
                 simulate_delivery()
+            
+            # 每次循环检查并生成警报（20%概率，避免警报过多）
+            if random.random() < 0.2:
+                check_and_generate_alerts()
             
             # 定期打印状态（用于调试）
             if random.random() < 0.1:  # 10% 概率打印状态
