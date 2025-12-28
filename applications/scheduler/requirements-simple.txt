@@ -1,0 +1,14 @@
+# 简化版依赖（不需要系统库，但功能可能受限）
+# 如果 confluent-kafka 无法安装，可以使用这个版本
+# 注意：kafka-python 的性能不如 confluent-kafka
+
+# 使用 kafka-python 替代 confluent-kafka（不需要系统依赖）
+kafka-python==2.0.2
+
+# Web Framework
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+websockets==12.0
+pydantic==2.5.0
+
