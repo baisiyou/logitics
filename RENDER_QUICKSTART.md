@@ -27,7 +27,7 @@
 #### 构建和启动命令
 - **Build Command**: 
   ```bash
-  pip install -r ../../requirements.txt
+  pip install -r requirements.txt
   ```
   
 - **Start Command**: 

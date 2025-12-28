@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     rootDir: applications/scheduler
-    buildCommand: pip install -r ../../requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: python dispatch_center.py
     envVars:
       - key: CONFLUENT_BOOTSTRAP_SERVERS
