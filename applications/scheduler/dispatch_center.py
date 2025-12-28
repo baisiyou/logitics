@@ -72,7 +72,7 @@ manager = ConnectionManager()
 
 
 def generate_mock_data():
-    """生成模拟数据用于演示（当没有 Kafka 数据源时）"""
+    """生成初始模拟数据用于演示（当没有 Kafka 数据源时）"""
     cities = ['Montreal', 'Toronto', 'Vancouver', 'Calgary', 'Ottawa']
     priorities = ['STANDARD', 'EXPRESS', 'SAME_DAY']
     
@@ -122,15 +122,118 @@ def generate_mock_data():
             'current_inventory': random.randint(500, 4500)
         }
     
-    # 更新统计数据
+    # 初始化统计数据
+    update_statistics()
+    
+    print(f"生成模拟数据: {len(dispatch_state['orders'])} 订单, {len(dispatch_state['vehicles'])} 车辆")
+
+
+def update_statistics():
+    """更新统计数据"""
     dispatch_state['statistics'] = {
         'total_orders_today': len(dispatch_state['orders']),
         'active_vehicles': len([v for v in dispatch_state['vehicles'].values() if v.get('status') in ['IN_TRANSIT', 'DELIVERING']]),
-        'delivered_today': random.randint(10, 50),
+        'delivered_today': dispatch_state['statistics'].get('delivered_today', 0),
         'pending_orders': len([o for o in dispatch_state['orders'].values()])
     }
+
+
+def simulate_new_order():
+    """模拟新订单到达"""
+    cities = ['Montreal', 'Toronto', 'Vancouver', 'Calgary', 'Ottawa']
+    priorities = ['STANDARD', 'EXPRESS', 'SAME_DAY']
     
-    print(f"生成模拟数据: {len(dispatch_state['orders'])} 订单, {len(dispatch_state['vehicles'])} 车辆")
+    order_id = f"ORD{int(time.time() * 1000)}{random.randint(1000, 9999)}"
+    city = random.choice(cities)
+    dispatch_state['orders'][order_id] = {
+        'order_id': order_id,
+        'customer_id': f"CUST{random.randint(10000, 99999)}",
+        'timestamp': int(time.time() * 1000),
+        'delivery_address': {
+            'city': city,
+            'latitude': 45.5017 + random.uniform(-0.1, 0.1),
+            'longitude': -73.5673 + random.uniform(-0.1, 0.1)
+        },
+        'priority': random.choice(priorities),
+        'items': [{'product_id': f'P{random.randint(1, 5)}', 'quantity': random.randint(1, 3)}]
+    }
+    
+    update_statistics()
+    
+    # 广播新订单
+    asyncio.create_task(manager.broadcast({
+        'type': 'order_assigned',
+        'data': {
+            'order_id': order_id,
+            'assigned_vehicle': random.choice(list(dispatch_state['vehicles'].keys())) if dispatch_state['vehicles'] else None,
+            'timestamp': int(time.time() * 1000)
+        }
+    }))
+    
+    print(f"模拟新订单: {order_id}")
+
+
+def simulate_vehicle_update():
+    """模拟车辆位置和状态更新"""
+    if not dispatch_state['vehicles']:
+        return
+    
+    vehicle_id = random.choice(list(dispatch_state['vehicles'].keys()))
+    vehicle = dispatch_state['vehicles'][vehicle_id]
+    
+    # 随机更新车辆状态
+    current_status = vehicle.get('status', 'IDLE')
+    if random.random() < 0.3:  # 30% 概率改变状态
+        status_options = ['IDLE', 'LOADING', 'IN_TRANSIT', 'DELIVERING', 'RETURNING']
+        current_status = random.choice(status_options)
+        vehicle['status'] = current_status
+    
+    # 更新位置（模拟移动）
+    vehicle['latitude'] += random.uniform(-0.01, 0.01)
+    vehicle['longitude'] += random.uniform(-0.01, 0.01)
+    vehicle['timestamp'] = int(time.time() * 1000)
+    vehicle['speed_kmh'] = random.uniform(0, 80) if current_status not in ['IDLE', 'LOADING'] else 0
+    vehicle['fuel_level'] = max(0, vehicle.get('fuel_level', 100) - random.uniform(0, 0.5))
+    
+    update_statistics()
+
+
+def simulate_delivery():
+    """模拟订单完成（交付）"""
+    if not dispatch_state['orders']:
+        return
+    
+    # 随机选择一个订单标记为已完成
+    order_id = random.choice(list(dispatch_state['orders'].keys()))
+    
+    # 模拟交付：增加已交付数量，移除订单（或保留但标记为已完成）
+    dispatch_state['statistics']['delivered_today'] = dispatch_state['statistics'].get('delivered_today', 0) + 1
+    dispatch_state['orders'].pop(order_id, None)
+    
+    update_statistics()
+    print(f"模拟订单交付: {order_id}")
+
+
+def mock_data_simulator_loop():
+    """模拟数据生成循环（当没有 Kafka 时）"""
+    while True:
+        try:
+            time.sleep(10)  # 每10秒执行一次
+            
+            # 30% 概率生成新订单
+            if random.random() < 0.3:
+                simulate_new_order()
+            
+            # 每次更新车辆位置
+            simulate_vehicle_update()
+            
+            # 20% 概率模拟订单交付
+            if random.random() < 0.2 and dispatch_state['orders']:
+                simulate_delivery()
+                
+        except Exception as e:
+            print(f"模拟数据生成错误: {e}")
+            time.sleep(5)
 
 
 def optimize_dispatch(order: Dict, vehicles: Dict, warehouses: Dict) -> Dict[str, Any]:
@@ -358,10 +461,14 @@ def kafka_consumer_loop():
 # Start后台Kafka消费者
 import threading
 
-# 如果没有 Kafka 配置，生成初始模拟数据（在启动 Kafka 消费者之前）
+# 如果没有 Kafka 配置，生成初始模拟数据并启动模拟数据生成器
 if BOOTSTRAP_SERVERS == 'localhost:9092' and not CONFLUENT_API_KEY:
-    print("未检测到 Kafka 配置，生成初始模拟数据...")
+    print("未检测到 Kafka 配置，生成初始模拟数据并启动模拟数据生成器...")
     generate_mock_data()
+    # 启动模拟数据生成器（定期更新数据）
+    mock_simulator_thread = threading.Thread(target=mock_data_simulator_loop, daemon=True)
+    mock_simulator_thread.start()
+    print("模拟数据生成器已启动，数据将每10秒更新一次")
 
 consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
 consumer_thread.start()
