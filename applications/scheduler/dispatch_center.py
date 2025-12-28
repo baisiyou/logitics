@@ -248,10 +248,13 @@ def kafka_consumer_loop():
         })
     
     # 使用 kafka-python 创建 consumer 和 producer
-    consumer = KafkaConsumer(*topics, **consumer_config)
-    producer = KafkaProducer(**producer_config)
-    
-    print("Dispatch中心Kafka消费者AlreadyStart")
+    try:
+        consumer = KafkaConsumer(*topics, **consumer_config)
+        producer = KafkaProducer(**producer_config)
+        print("Dispatch中心Kafka消费者AlreadyStart")
+    except Exception as e:
+        print(f"Kafka连接失败，使用模拟数据模式: {e}")
+        return  # 如果 Kafka 连接失败，直接返回，使用已生成的模拟数据
     
     try:
         while True:
