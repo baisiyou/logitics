@@ -49,7 +49,9 @@
 | Key | Value | 必需 |
 |-----|-------|------|
 | `CONFLUENT_BOOTSTRAP_SERVERS` | `your-kafka-server:9092` | ✅ 是 |
-| `PYTHON_VERSION` | `3.11` | ❌ 否（可选） |
+| `PYTHON_VERSION` | `3.11.0` | ✅ **是（必需！）** |
+
+**重要**：必须设置 `PYTHON_VERSION=3.11.0`，因为 pydantic 1.10.13 不支持 Python 3.13。
 
 **注意**：
 - `PORT` 环境变量由 Render 自动设置，**无需手动配置**

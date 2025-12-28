@@ -43,7 +43,7 @@
 | Key | Value | 说明 |
 |-----|-------|------|
 | `CONFLUENT_BOOTSTRAP_SERVERS` | `your-kafka-bootstrap-server:9092` | Kafka 服务器地址 |
-| `PYTHON_VERSION` | `3.11` | Python 版本 |
+| `PYTHON_VERSION` | `3.11.0` | **必需！** Python 版本（必须使用 3.11，pydantic 1.10.13 不支持 Python 3.13） |
 
 **重要说明**：
 - `PORT` 环境变量由 Render 自动设置，无需手动配置
