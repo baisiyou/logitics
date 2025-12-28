@@ -354,6 +354,12 @@ def kafka_consumer_loop():
 
 # Start后台Kafka消费者
 import threading
+
+# 如果没有 Kafka 配置，生成初始模拟数据（在启动 Kafka 消费者之前）
+if BOOTSTRAP_SERVERS == 'localhost:9092' and not CONFLUENT_API_KEY:
+    print("未检测到 Kafka 配置，生成初始模拟数据...")
+    generate_mock_data()
+
 consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
 consumer_thread.start()
 
@@ -480,11 +486,6 @@ async def manual_dispatch(order_id: str, vehicle_id: str):
 
 
 if __name__ == '__main__':
-    # 如果没有 Kafka 配置，生成初始模拟数据
-    if BOOTSTRAP_SERVERS == 'localhost:9092' and not os.getenv('CONFLUENT_BOOTSTRAP_SERVERS'):
-        print("未检测到 Kafka 配置，生成初始模拟数据...")
-        generate_mock_data()
-    
     # Render 会自动设置 PORT 环境变量，如果没有则使用默认值 8001
     port = int(os.getenv('PORT', 8001))
     uvicorn.run(app, host="0.0.0.0", port=port)
