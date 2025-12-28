@@ -39,10 +39,10 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  // demandPredictions is fetched but not currently displayed in UI
-  const [, setDemandPredictions] = useState([]);
-  // WebSocket connection is managed internally, no need to store in state
-  const [, setWs] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const [demandPredictions, setDemandPredictions] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [ws, setWs] = useState(null);
 
   useEffect(() => {
     // 连接WebSocket
@@ -106,6 +106,7 @@ function App() {
       websocket.close();
       clearInterval(interval);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 准备图表数据 - 按时间分组统计订单数量
