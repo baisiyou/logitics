@@ -2,8 +2,8 @@
 # 如果 confluent-kafka 无法安装，可以使用这个版本
 # 注意：kafka-python 的性能不如 confluent-kafka
 
-# 使用 kafka-python 替代 confluent-kafka（不需要系统依赖）
-kafka-python==2.0.2
+# 使用 kafka-python-ng 替代 kafka-python（支持 Python 3.12+，修复了兼容性问题）
+kafka-python-ng==2.3.0
 
 # Web Framework
 fastapi==0.104.1
