@@ -39,8 +39,10 @@ function App() {
   const [orders, setOrders] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [alerts, setAlerts] = useState([]);
-  const [demandPredictions, setDemandPredictions] = useState([]);
-  const [ws, setWs] = useState(null);
+  // demandPredictions is fetched but not currently displayed in UI
+  const [, setDemandPredictions] = useState([]);
+  // WebSocket connection is managed internally, no need to store in state
+  const [, setWs] = useState(null);
 
   useEffect(() => {
     // 连接WebSocket
@@ -55,7 +57,7 @@ function App() {
       const data = JSON.parse(event.data);
       
       if (data.type === 'initial_state') {
-        setStatistics(data.data.statistics || statistics);
+        setStatistics(data.data.statistics || {});
         setOrders(Object.values(data.data.orders || {}));
         setVehicles(Object.values(data.data.vehicles || {}));
         setAlerts(data.data.alerts || []);
