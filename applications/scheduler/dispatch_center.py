@@ -6,6 +6,7 @@ Real-time监控和IntelligentDispatch决策
 
 import json
 import time
+import random
 from typing import Dict, List, Any
 from kafka import KafkaConsumer, KafkaProducer
 from kafka.errors import KafkaError
@@ -68,6 +69,68 @@ class ConnectionManager:
                 pass
 
 manager = ConnectionManager()
+
+
+def generate_mock_data():
+    """生成模拟数据用于演示（当没有 Kafka 数据源时）"""
+    cities = ['Montreal', 'Toronto', 'Vancouver', 'Calgary', 'Ottawa']
+    priorities = ['STANDARD', 'EXPRESS', 'SAME_DAY']
+    
+    # 生成模拟订单
+    for i in range(random.randint(5, 15)):
+        order_id = f"ORD{int(time.time() * 1000)}{i}"
+        city = random.choice(cities)
+        dispatch_state['orders'][order_id] = {
+            'order_id': order_id,
+            'customer_id': f"CUST{random.randint(10000, 99999)}",
+            'timestamp': int(time.time() * 1000) - random.randint(0, 3600000),
+            'delivery_address': {
+                'city': city,
+                'latitude': 45.5017 + random.uniform(-0.1, 0.1),
+                'longitude': -73.5673 + random.uniform(-0.1, 0.1)
+            },
+            'priority': random.choice(priorities),
+            'items': [{'product_id': f'P{random.randint(1, 5)}', 'quantity': random.randint(1, 3)}]
+        }
+    
+    # 生成模拟车辆
+    for i in range(random.randint(8, 20)):
+        vehicle_id = f"VEH{i+1:04d}"
+        status = random.choice(['IDLE', 'LOADING', 'IN_TRANSIT', 'DELIVERING'])
+        dispatch_state['vehicles'][vehicle_id] = {
+            'vehicle_id': vehicle_id,
+            'driver_id': f'DRV{i+1:04d}',
+            'timestamp': int(time.time() * 1000),
+            'latitude': 45.5017 + random.uniform(-0.3, 0.3),
+            'longitude': -73.5673 + random.uniform(-0.3, 0.3),
+            'speed_kmh': random.uniform(0, 80) if status != 'IDLE' else 0,
+            'status': status,
+            'current_capacity': random.randint(0, 100),
+            'max_capacity': random.randint(100, 200),
+            'fuel_level': random.uniform(30, 100)
+        }
+    
+    # 生成模拟仓库
+    for i in range(3):
+        warehouse_id = f"WH{i+1:03d}"
+        dispatch_state['warehouses'][warehouse_id] = {
+            'warehouse_id': warehouse_id,
+            'name': f"Warehouse {i+1}",
+            'latitude': 45.5017 + random.uniform(-0.2, 0.2),
+            'longitude': -73.5673 + random.uniform(-0.2, 0.2),
+            'capacity': random.randint(1000, 5000),
+            'current_inventory': random.randint(500, 4500)
+        }
+    
+    # 更新统计数据
+    dispatch_state['statistics'] = {
+        'total_orders_today': len(dispatch_state['orders']),
+        'active_vehicles': len([v for v in dispatch_state['vehicles'].values() if v.get('status') in ['IN_TRANSIT', 'DELIVERING']]),
+        'delivered_today': random.randint(10, 50),
+        'pending_orders': len([o for o in dispatch_state['orders'].values()])
+    }
+    
+    print(f"生成模拟数据: {len(dispatch_state['orders'])} 订单, {len(dispatch_state['vehicles'])} 车辆")
 
 
 def optimize_dispatch(order: Dict, vehicles: Dict, warehouses: Dict) -> Dict[str, Any]:
@@ -357,6 +420,17 @@ async def get_demand_predictions():
     return list(dispatch_state['demand_predictions'].values())
 
 
+@app.post("/api/v1/generate-mock-data")
+async def generate_mock_data_endpoint():
+    """生成模拟数据（用于演示，不需要 Kafka）"""
+    generate_mock_data()
+    asyncio.create_task(manager.broadcast({
+        'type': 'initial_state',
+        'data': dispatch_state
+    }))
+    return {"success": True, "message": "模拟数据已生成", "data": dispatch_state}
+
+
 @app.post("/api/v1/manual-dispatch")
 async def manual_dispatch(order_id: str, vehicle_id: str):
     """手动Dispatch"""
@@ -406,6 +480,11 @@ async def manual_dispatch(order_id: str, vehicle_id: str):
 
 
 if __name__ == '__main__':
+    # 如果没有 Kafka 配置，生成初始模拟数据
+    if BOOTSTRAP_SERVERS == 'localhost:9092' and not os.getenv('CONFLUENT_BOOTSTRAP_SERVERS'):
+        print("未检测到 Kafka 配置，生成初始模拟数据...")
+        generate_mock_data()
+    
     # Render 会自动设置 PORT 环境变量，如果没有则使用默认值 8001
     port = int(os.getenv('PORT', 8001))
     uvicorn.run(app, host="0.0.0.0", port=port)
