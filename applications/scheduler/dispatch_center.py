@@ -381,10 +381,20 @@ def kafka_consumer_loop():
     try:
         consumer = KafkaConsumer(*topics, **consumer_config)
         producer = KafkaProducer(**producer_config)
-        print("Dispatch中心Kafka消费者AlreadyStart")
+        print("Dispatch中心Kafka消费者已启动")
     except Exception as e:
-        print(f"Kafka连接失败，使用模拟数据模式: {e}")
-        return  # 如果 Kafka 连接失败，直接返回，使用已生成的模拟数据
+        print(f"Kafka连接失败: {e}")
+        print("如果这是第一次启动且没有 Kafka 配置，这是正常的")
+        # 如果还没有初始化模拟数据，则初始化
+        if not dispatch_state['orders'] and not dispatch_state['vehicles']:
+            print("初始化模拟数据作为备选方案...")
+            generate_mock_data()
+            # 启动模拟数据生成器
+            import threading
+            mock_simulator_thread = threading.Thread(target=mock_data_simulator_loop, daemon=True)
+            mock_simulator_thread.start()
+            print("模拟数据生成器已启动")
+        return  # 如果 Kafka 连接失败，直接返回
     
     try:
         while True:
@@ -488,17 +498,28 @@ def kafka_consumer_loop():
 # Start后台Kafka消费者
 import threading
 
-# 如果没有 Kafka 配置，生成初始模拟数据并启动模拟数据生成器
-if BOOTSTRAP_SERVERS == 'localhost:9092' and not CONFLUENT_API_KEY:
-    print("未检测到 Kafka 配置，生成初始模拟数据并启动模拟数据生成器...")
+# 检查是否应该使用模拟数据模式
+# 如果 BOOTSTRAP_SERVERS 是默认值（localhost:9092）且没有设置 CONFLUENT_API_KEY，则使用模拟数据
+USE_MOCK_DATA = (BOOTSTRAP_SERVERS == 'localhost:9092' and not CONFLUENT_API_KEY)
+
+if USE_MOCK_DATA:
+    print("=" * 50)
+    print("未检测到 Kafka 配置，使用模拟数据模式")
+    print("=" * 50)
     generate_mock_data()
     # 启动模拟数据生成器（定期更新数据）
     mock_simulator_thread = threading.Thread(target=mock_data_simulator_loop, daemon=True)
     mock_simulator_thread.start()
-    print("模拟数据生成器已启动，数据将每10秒更新一次")
+    print("模拟数据生成器已启动，数据将每5秒更新一次")
+else:
+    print(f"检测到 Kafka 配置: {BOOTSTRAP_SERVERS}")
+    print("将尝试连接 Kafka...")
 
 consumer_thread = threading.Thread(target=kafka_consumer_loop, daemon=True)
 consumer_thread.start()
+
+# 如果 Kafka 连接失败，启动模拟数据生成器作为备选方案
+# 这会在 kafka_consumer_loop 函数内部处理（通过返回或异常）
 
 
 @app.websocket("/ws")
