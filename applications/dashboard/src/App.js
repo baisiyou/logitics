@@ -177,7 +177,7 @@ function App() {
   return (
     <Box sx={{ flexGrow: 1, p: 3, backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
       <Typography variant="h4" component="h1" gutterBottom sx={{ mb: 3, fontWeight: 'bold' }}>
-        Amazon Logistics Network Real-Time Intelligent Dispatch System
+        Real-Time Intelligent Logistics Dispatch System
       </Typography>
 
       {/* 统计卡片 */}

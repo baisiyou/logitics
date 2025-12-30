@@ -26,7 +26,7 @@ PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 LOCATION = os.getenv('VERTEX_AI_LOCATION', 'us-central1')
 ENDPOINT_ID = os.getenv('VERTEX_AI_ENDPOINT_ID', '')  # Need to create endpoint first
 
-app = FastAPI(title="Amazon Logistics AI Service")
+app = FastAPI(title="Real-Time Intelligent Logistics AI Service")
 
 # Initialize Vertex AI
 aiplatform.init(project=PROJECT_ID, location=LOCATION)

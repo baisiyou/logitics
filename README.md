@@ -1,4 +1,4 @@
-# Amazon Logistics Network Real-Time Intelligent Dispatch System
+# Real-Time Intelligent Logistics Dispatch System
 
 A real-time intelligent dispatch system based on Confluent data streaming and Google Cloud AI, enabling dynamic optimization and matching of warehouses, vehicles, and packages.
 

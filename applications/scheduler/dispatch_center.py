@@ -24,7 +24,7 @@ BOOTSTRAP_SERVERS = os.getenv('CONFLUENT_BOOTSTRAP_SERVERS', 'localhost:9092')
 CONFLUENT_API_KEY = os.getenv('CONFLUENT_API_KEY', None)
 CONFLUENT_API_SECRET = os.getenv('CONFLUENT_API_SECRET', None)
 
-app = FastAPI(title="Amazon Logistics Dispatch Center")
+app = FastAPI(title="Real-Time Intelligent Logistics Dispatch Center")
 
 app.add_middleware(
     CORSMiddleware,
